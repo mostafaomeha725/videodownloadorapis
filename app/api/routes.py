@@ -135,8 +135,10 @@ def _download_with_ytdlp(page_url: str, quality_index: int, out_path: str) -> st
         "quiet": True,
         "no_warnings": True,
         "skip_download": True,
-        # Force IPv4 to avoid Railway/datacenter IPv6 blocks by YouTube
+        # Force IPv4 — datacenter IPv6 is blocked by YouTube
         "source_address": "0.0.0.0",
+        # Use Node.js runtime so yt-dlp can generate PO Tokens on Railway
+        "js_runtimes": {"node": {}},
     }
 
     if is_yt:

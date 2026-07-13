@@ -70,8 +70,12 @@ def _make_ydl_opts() -> dict[str, Any]:
         "retries": settings.YT_DLP_RETRIES,
         # Force IPv4 — datacenter IPv6 is blocked by YouTube
         "source_address": "0.0.0.0",
-        # Multi-client strategy: web provides full format list; mobile clients
-        # act as fallbacks on datacenter IPs where 'web' may be restricted.
+        # Use Node.js as JS runtime so yt-dlp can generate YouTube PO Tokens.
+        # Without a JS runtime, the web client fails on datacenter IPs (Railway).
+        # Node.js 22 is installed via nixpacks.toml on Railway.
+        "js_runtimes": {"node": {}},
+        # Multi-client strategy: web provides full format list with PO token;
+        # mobile clients act as fallbacks if Node.js is unavailable.
         "extractor_args": {
             "youtube": {
                 "player_client": _YT_PLAYER_CLIENTS,
