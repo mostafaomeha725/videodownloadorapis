@@ -143,26 +143,78 @@ def _download_with_ytdlp(page_url: str, quality_index: int, out_path: str) -> st
         "Chrome/124.0.0.0 Safari/537.36"
     )
 
+    info_opts = {
+        "quiet": True,
+        "no_warnings": True,
+        "skip_download": True,
+        "format": "all",
+        "extractor_args": {
+            "youtube": ["player_client=ios,tv,web"]
+        },
+    }
+    
+    # Only override headers for non-YouTube platforms (TikTok/Facebook) to avoid breaking YT PO token
+    if not is_yt:
+        info_opts["http_headers"] = {"User-Agent": ua}
+
+    with yt_dlp.YoutubeDL(info_opts) as ydl:
+        info = ydl.extract_info(page_url, download=False)
+        
+    all_formats = info.get("formats") or []
+    if not all_formats:
+        raise RuntimeError("No formats found for this URL.")
+
     # ── YouTube ────────────────────────────────────────────────────────────
     if is_yt:
-        # Pick the height cap based on quality_index
         max_height = _YT_QUALITY_HEIGHTS[min(quality_index, len(_YT_QUALITY_HEIGHTS) - 1)]
+        logger.info("YouTube dynamic selection: target max_height=%d", max_height)
 
-        fmt = (
-            f"bestvideo[height<={max_height}][ext=mp4]+bestaudio[ext=m4a]"
-            f"/bestvideo[height<={max_height}]+bestaudio"
-            f"/best[height<={max_height}]"
-        )
-        logger.info("YouTube download: quality_index=%d max_height=%d", quality_index, max_height)
+        video_streams = [f for f in all_formats if f.get("vcodec") not in ("none", None, "") and f.get("acodec") in ("none", None, "")]
+        audio_streams = [f for f in all_formats if f.get("acodec") not in ("none", None, "") and f.get("vcodec") in ("none", None, "")]
+        combined_streams = [f for f in all_formats if f.get("vcodec") not in ("none", None, "") and f.get("acodec") not in ("none", None, "")]
+
+        valid_video = [f for f in video_streams if (f.get("height") or 0) <= max_height]
+        valid_combined = [f for f in combined_streams if (f.get("height") or 0) <= max_height]
+
+        if not valid_video and video_streams:
+            valid_video = video_streams
+        if not valid_combined and combined_streams:
+            valid_combined = combined_streams
+
+        def video_sort_key(f):
+            return (f.get("height") or 0, f.get("tbr") or 0, f.get("filesize") or 0)
+            
+        def audio_sort_key(f):
+            return (f.get("abr") or 0, f.get("tbr") or 0, f.get("filesize") or 0)
+
+        if valid_video:
+            valid_video.sort(key=video_sort_key, reverse=True)
+        if valid_combined:
+            valid_combined.sort(key=video_sort_key, reverse=True)
+        if audio_streams:
+            audio_streams.sort(key=audio_sort_key, reverse=True)
+
+        if valid_video and audio_streams:
+            v_id = valid_video[0]["format_id"]
+            a_id = audio_streams[0]["format_id"]
+            fmt_id = f"{v_id}+{a_id}"
+        elif valid_combined:
+            fmt_id = valid_combined[0]["format_id"]
+        else:
+            fmt_id = all_formats[-1]["format_id"]  # Ultimate fallback to any valid stream
+
+        logger.info("YouTube dynamically selected format_id: %s", fmt_id)
 
         dl_opts = {
             "quiet": True,
             "no_warnings": True,
             "outtmpl": out_path,
-            "format": fmt,
+            "format": fmt_id,
             "merge_output_format": "mp4",
             "ffmpeg_location": _FFMPEG_DIR,
-            # Let yt-dlp handle YouTube headers natively to prevent 403 PO token errors
+            "extractor_args": {
+                "youtube": ["player_client=ios,tv,web"]
+            },
         }
 
         with yt_dlp.YoutubeDL(dl_opts) as ydl:
@@ -170,19 +222,6 @@ def _download_with_ytdlp(page_url: str, quality_index: int, out_path: str) -> st
 
     # ── TikTok / Facebook ──────────────────────────────────────────────────
     else:
-        # Step 1: extract info to find combined video+audio formats
-        info_opts = {
-            "quiet": True,
-            "no_warnings": True,
-            "skip_download": True,
-            "http_headers": {"User-Agent": ua},
-        }
-
-        with yt_dlp.YoutubeDL(info_opts) as ydl:
-            info = ydl.extract_info(page_url, download=False)
-
-        all_formats = info.get("formats") or []
-
         # Keep only formats with BOTH video and audio streams
         combined = [
             f for f in all_formats

@@ -22,13 +22,14 @@ class QualityCard extends StatelessWidget {
   Future<void> _launchDownload() async {
     // Use /download-file so the server (yt-dlp) handles the actual download,
     // bypassing TikTok CDN IP-based token restrictions.
-    final downloadUrl = Uri.parse('http://localhost:8000/download-file').replace(
-      queryParameters: {
-        'page_url': pageUrl,
-        'quality_index': qualityIndex.toString(),
-        'title': title,
-      },
-    );
+    final downloadUrl = Uri.parse('http://localhost:8000/download-file')
+        .replace(
+          queryParameters: {
+            'page_url': pageUrl,
+            'quality_index': qualityIndex.toString(),
+            'title': title,
+          },
+        );
     if (await canLaunchUrl(downloadUrl)) {
       await launchUrl(downloadUrl, mode: LaunchMode.externalApplication);
     }
@@ -42,9 +43,7 @@ class QualityCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.background,
         borderRadius: BorderRadius.circular(16.r),
-        border: Border.all(
-          color: AppColors.border,
-        ),
+        border: Border.all(color: AppColors.border),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -69,10 +68,7 @@ class QualityCard extends StatelessWidget {
           ),
           SizedBox(
             width: 120.w,
-            child: AppButton(
-              text: 'Download',
-              onPressed: _launchDownload,
-            ),
+            child: AppButton(text: 'Download', onPressed: _launchDownload),
           ),
         ],
       ),

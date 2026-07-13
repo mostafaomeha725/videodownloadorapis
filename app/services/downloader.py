@@ -35,9 +35,12 @@ def _make_ydl_opts() -> dict[str, Any]:
         "color": "no_color",
         "socket_timeout": settings.YT_DLP_SOCKET_TIMEOUT,
         "retries": settings.YT_DLP_RETRIES,
-        # We don't override http_headers or extractor_args here.
-        # Overriding User-Agent breaks YouTube's PO Token / bot detection.
-        # yt-dlp will automatically choose the best User-Agent for each platform.
+        # Override format resolution to prevent 'Requested format is not available' error during extraction
+        "format": "all",
+        # Use ios and tv clients to bypass YouTube bot detection and 403s on datacenter IPs without limiting quality
+        "extractor_args": {
+            "youtube": ["player_client=ios,tv,web"]
+        },
     }
 
 
